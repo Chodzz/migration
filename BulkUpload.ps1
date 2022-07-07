@@ -23,19 +23,19 @@ foreach ($row in $table)
           $result = Import-Document -WarningAction Ignore -SourceFolder $row.SourcePath -DestinationList $dstList -CopySettings $copysettings -Template $propertyTemplate -TaskName $row.SourcePath -WaitForImportCompletion
           Write-Host 'Copied' $row.SourcePath 'to:' -ForegroundColor Green
           Write-Host $dstList.Address.AbsoluteUri 
-          $row.Status = 'Upload'+$row.Status
+          $row.Status = 'Upload'
           $table | Export-Csv $csvFile -Delimiter ',' -NoType
         }
         Catch [Sharegate.Common.Exceptions.SGInvalidOperationException]
         {
           Write-Host 'An Error occured in:' $row.SourcePath 'File not found' -ForegroundColor Red 
-          $row.Status = 'Error'+$row.Status
+          $row.Status = 'Error'
           $table | Export-Csv $csvFile -Delimiter ',' -NoType
         } 
         Catch
         {
           Write-Host 'An Error occured in:' $row.DestinationPath 'Library or site do not exist' -ForegroundColor Red 
-          $row.Status = 'Error'+$row.Status
+          $row.Status = 'Error'
           $table | Export-Csv $csvFile -Delimiter ',' -NoType
         }                  
     }
