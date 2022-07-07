@@ -7,22 +7,37 @@ $mypassword = ConvertTo-SecureString 'pass' -AsPlainText -Force
 $myuser = 'user'
 $copysettings = New-CopySettings -OnContentItemExists IncrementalUpdate
 $propertyTemplate = New-PropertyTemplate -AuthorsAndTimestamps
-Set-Variable dstSite, dstList, dstLib
+Set-Variable dstSite, dstList, dstLib, result
 foreach ($row in $table)
 {
     if ($row.Status -notmatch "Upload")
     {
-        Clear-Variable dstSite
-        Clear-Variable dstList
-        Clear-Variable dstLib
-        $dstLib = Split-Path $row.DestinationPath -Leaf
-        $dstSite = Connect-Site -Url $row.DestinationPath -UserName $myuser -Password $mypassword -AllowConnectionFallback -WarningAction Ignore
-        $ID = Get-List -Site $dstSite | Where-Object -Property Address -match $dstLib | Select-Object Id -First 1
-        $dstList = Get-List -Site $dstSite -Id $ID.Id 
-        Import-Document -SourceFolder $row.SourcePath -DestinationList $dstList -CopySettings $copysettings -Template $propertyTemplate -TaskName $row.SourcePath
-        Write-Output $dstList.Address.AbsoluteUri
-        $row.Status = 'Upload'+$row.Status
-        $table | Export-Csv ./BulkUpload.csv -Delimiter ',' -NoType
+        Try
+        {
+          Clear-Variable dstSite, dstList, dstLib, result
+          $dstLib = Split-Path $row.DestinationPath -Leaf
+          $dstSite = Connect-Site -Url $row.DestinationPath -UserName $myuser -Password $mypassword -AllowConnectionFallback -WarningAction Ignore
+          $ID = Get-List -Site $dstSite | Where-Object { $_.RootFolder.Split("/")[3] -eq $dstLib }
+          #$ID = Get-List -Site $dstSite | Where-Object -Property Address -match $dstLib | Select-Object Id -First 1
+          $dstList = Get-List -Site $dstSite -Id $ID.Id
+          $result = Import-Document -WarningAction Ignore -SourceFolder $row.SourcePath -DestinationList $dstList -CopySettings $copysettings -Template $propertyTemplate -TaskName $row.SourcePath -WaitForImportCompletion
+          Write-Host 'Copied' $row.SourcePath 'to:' -ForegroundColor Green
+          Write-Host $dstList.Address.AbsoluteUri 
+          $row.Status = 'Upload'+$row.Status
+          $table | Export-Csv $csvFile -Delimiter ',' -NoType
+        }
+        Catch [Sharegate.Common.Exceptions.SGInvalidOperationException]
+        {
+          Write-Host 'An Error occured in:' $row.SourcePath 'File not found' -ForegroundColor Red 
+          $row.Status = 'Error'+$row.Status
+          $table | Export-Csv $csvFile -Delimiter ',' -NoType
+        } 
+        Catch
+        {
+          Write-Host 'An Error occured in:' $row.DestinationPath 'Library or site do not exist' -ForegroundColor Red 
+          $row.Status = 'Error'+$row.Status
+          $table | Export-Csv $csvFile -Delimiter ',' -NoType
+        }                  
     }
     else
     {
